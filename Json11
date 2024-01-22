@@ -1,0 +1,65 @@
+import json
+import pandas as pd
+import re
+
+# Initialiser des listes pour stocker les lignes nettoyées correctes et les lignes avec des erreurs
+cleaned_lines_ok = []
+cleaned_lines_nook = []
+
+def preprocess_json(json_str):
+    try:
+        # Enlever les caractères < et >
+        cleaned_str = re.sub(r'<|>', '', json_str)
+
+        # Remplacer <script> et </script> par 'script'
+        cleaned_str = re.sub(r'<script>', 'script_', cleaned_str)
+        cleaned_str = re.sub(r'</script>', '/script_', cleaned_str)
+
+        # Convertir <123> en '123'
+        cleaned_str = re.sub(r'<(\d+)>', r"'\1'", cleaned_str)
+
+        # Ajouter un double backslash avant chaque backslash dans la chaîne
+        cleaned_str = cleaned_str.replace('\\', '\\\\')
+
+        return cleaned_str
+
+    except Exception as e:
+        print(f"Erreur lors du prétraitement : {e}")
+        return None
+
+# Spécifiez le chemin vers votre fichier usage.log
+fichier_log_path = "C:/Users/Utilisateur/Documents/VH PROJECTS/facebook/exemple.log"
+
+# Lecture du fichier log initial
+with open(fichier_log_path, 'r') as file:
+    lignes = file.readlines()
+
+    for row in lignes:
+        print(row)
+        
+        # Appliquer la prétraitement et gérer les erreurs
+        cleaned_json_str = preprocess_json(row)
+
+        if cleaned_json_str is not None:
+            try:
+                # Charger la chaîne JSON nettoyée en tant que dictionnaire Python
+                data_dict = json.loads(cleaned_json_str)
+                # Ajouter le dictionnaire à la liste des lignes correctes
+                cleaned_lines_ok.append(data_dict)
+            except json.JSONDecodeError as e:
+                print(f"Erreur lors de la conversion JSON : {e}")
+                # Ajouter la ligne avec une erreur à la liste des lignes avec des erreurs
+                cleaned_lines_nook.append(row)
+
+# Créer un DataFrame à partir de la liste de dictionnaires des lignes correctes
+df_ok = pd.DataFrame(cleaned_lines_ok)
+
+# Créer un DataFrame à partir de la liste des lignes avec des erreurs
+df_nook = pd.DataFrame({'Lignes avec Erreurs': cleaned_lines_nook})
+
+# Afficher les DataFrames
+print("DataFrame des lignes correctes :")
+print(df_ok)
+
+print("\nDataFrame des lignes avec des erreurs :")
+print(df_nook)
