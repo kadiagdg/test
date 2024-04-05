@@ -14681,32 +14681,23 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 <div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[&nbsp;]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
-<div class=" highlight hl-ipython3"><pre><span></span><span class="n">WITH</span> <span class="n">ranked_transactions</span> <span class="n">AS</span> <span class="p">(</span>
+<div class=" highlight hl-ipython3"><pre><span></span><span class="n">WITH</span> <span class="n">ranked_dates</span> <span class="n">AS</span> <span class="p">(</span>
     <span class="n">SELECT</span>
         <span class="o">*</span><span class="p">,</span>
-        <span class="n">ROW_NUMBER</span><span class="p">()</span> <span class="n">OVER</span><span class="p">(</span><span class="n">PARTITION</span> <span class="n">BY</span> <span class="nb">id</span><span class="p">,</span> <span class="n">date_deb</span> <span class="n">ORDER</span> <span class="n">BY</span> <span class="n">date_fin</span> <span class="n">DESC</span><span class="p">)</span> <span class="n">AS</span> <span class="n">row_num</span><span class="p">,</span>
-        <span class="n">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span> <span class="n">OVER</span><span class="p">(</span><span class="n">PARTITION</span> <span class="n">BY</span> <span class="nb">id</span><span class="p">,</span> <span class="n">date_deb</span><span class="p">)</span> <span class="n">AS</span> <span class="n">count_per_group</span>
+        <span class="n">ROW_NUMBER</span><span class="p">()</span> <span class="n">OVER</span><span class="p">(</span><span class="n">PARTITION</span> <span class="n">BY</span> <span class="nb">id</span><span class="p">,</span> <span class="n">start_date</span> <span class="n">ORDER</span> <span class="n">BY</span> <span class="n">end_date</span> <span class="n">DESC</span><span class="p">)</span> <span class="n">AS</span> <span class="n">row_num</span><span class="p">,</span>
+        <span class="n">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span> <span class="n">OVER</span><span class="p">(</span><span class="n">PARTITION</span> <span class="n">BY</span> <span class="nb">id</span><span class="p">,</span> <span class="n">start_date</span><span class="p">)</span> <span class="n">AS</span> <span class="n">count_per_group</span><span class="p">,</span>
+        <span class="n">MAX</span><span class="p">(</span><span class="n">CASE</span> <span class="n">WHEN</span> <span class="n">end_date</span> <span class="o">!=</span> <span class="s1">&#39;31/12/2999&#39;</span> <span class="n">THEN</span> <span class="n">end_date</span> <span class="n">ELSE</span> <span class="n">NULL</span> <span class="n">END</span><span class="p">)</span> <span class="n">OVER</span><span class="p">(</span><span class="n">PARTITION</span> <span class="n">BY</span> <span class="nb">id</span><span class="p">,</span> <span class="n">start_date</span><span class="p">)</span> <span class="n">AS</span> <span class="n">max_non_2999_end_date</span>
     <span class="n">FROM</span>
         <span class="n">hive</span>
 <span class="p">)</span>
 <span class="n">SELECT</span>
-    <span class="n">date_deb</span><span class="p">,</span>
-    <span class="n">date_fin</span><span class="p">,</span>
-    <span class="nb">id</span><span class="p">,</span>
-    <span class="n">montant_</span>
+    <span class="o">*</span>
 <span class="n">FROM</span>
-    <span class="p">(</span>
-    <span class="n">SELECT</span>
-        <span class="o">*</span><span class="p">,</span>
-        <span class="n">MAX</span><span class="p">(</span><span class="n">date_fin</span><span class="p">)</span> <span class="n">OVER</span><span class="p">(</span><span class="n">PARTITION</span> <span class="n">BY</span> <span class="nb">id</span><span class="p">,</span> <span class="n">date_deb</span><span class="p">)</span> <span class="n">AS</span> <span class="n">max_date_fin</span><span class="p">,</span>
-        <span class="n">MAX</span><span class="p">(</span><span class="n">CASE</span> <span class="n">WHEN</span> <span class="n">date_fin</span> <span class="o">!=</span> <span class="s1">&#39;01/01/2099&#39;</span> <span class="n">THEN</span> <span class="n">date_fin</span> <span class="n">END</span><span class="p">)</span> <span class="n">OVER</span><span class="p">(</span><span class="n">PARTITION</span> <span class="n">BY</span> <span class="nb">id</span><span class="p">,</span> <span class="n">date_deb</span><span class="p">)</span> <span class="n">AS</span> <span class="n">max_non_2099_date_fin</span>
-    <span class="n">FROM</span>
-        <span class="n">ranked_transactions</span>
-    <span class="p">)</span> <span class="n">ranked_with_max_dates</span>
+    <span class="n">ranked_dates</span>
 <span class="n">WHERE</span>
-    <span class="p">(</span><span class="n">row_num</span> <span class="o">=</span> <span class="mi">1</span><span class="p">)</span> <span class="n">OR</span>
-    <span class="p">(</span><span class="n">count_per_group</span> <span class="o">&gt;</span> <span class="mi">2</span> <span class="n">AND</span> <span class="n">date_fin</span> <span class="o">=</span> <span class="s1">&#39;01/01/2099&#39;</span> <span class="n">AND</span> <span class="n">date_fin</span> <span class="o">=</span> <span class="n">max_date_fin</span> <span class="n">AND</span> <span class="n">date_fin</span> <span class="o">!=</span> <span class="s1">&#39;01/01/2099&#39;</span><span class="p">)</span> <span class="n">OR</span>
-    <span class="p">(</span><span class="n">count_per_group</span> <span class="o">&lt;=</span> <span class="mi">2</span> <span class="n">AND</span> <span class="n">date_fin</span> <span class="o">=</span> <span class="n">max_non_2099_date_fin</span><span class="p">);</span>
+    <span class="n">count_per_group</span> <span class="o">=</span> <span class="mi">1</span>  <span class="o">--</span> <span class="n">Si</span> <span class="n">le</span> <span class="n">groupe</span> <span class="n">a</span> <span class="n">seulement</span> <span class="n">une</span> <span class="n">ligne</span><span class="p">,</span> <span class="n">la</span> <span class="n">garder</span>
+    <span class="n">OR</span> <span class="p">(</span><span class="n">count_per_group</span> <span class="o">&gt;=</span> <span class="mi">2</span> <span class="n">AND</span> <span class="n">max_non_2999_end_date</span> <span class="n">IS</span> <span class="n">NOT</span> <span class="n">NULL</span> <span class="n">AND</span> <span class="n">end_date</span> <span class="o">=</span> <span class="n">max_non_2999_end_date</span><span class="p">)</span>  <span class="o">--</span> <span class="n">Si</span> <span class="n">le</span> <span class="n">groupe</span> <span class="n">contient</span> <span class="s1">&#39;31/12/2999&#39;</span><span class="p">,</span> <span class="n">garder</span> <span class="n">la</span> <span class="n">ligne</span> <span class="n">la</span> <span class="n">plus</span> <span class="n">récente</span> <span class="n">différente</span> <span class="n">de</span> <span class="s1">&#39;31/12/2999&#39;</span>
+    <span class="n">OR</span> <span class="p">(</span><span class="n">count_per_group</span> <span class="o">&gt;=</span> <span class="mi">2</span> <span class="n">AND</span> <span class="n">max_non_2999_end_date</span> <span class="n">IS</span> <span class="n">NULL</span> <span class="n">AND</span> <span class="n">row_num</span> <span class="o">=</span> <span class="mi">1</span><span class="p">);</span>  <span class="o">--</span> <span class="n">Si</span> <span class="n">le</span> <span class="n">groupe</span> <span class="n">ne</span> <span class="n">contient</span> <span class="n">pas</span> <span class="s1">&#39;31/12/2999&#39;</span><span class="p">,</span> <span class="n">garder</span> <span class="n">la</span> <span class="n">ligne</span> <span class="n">avec</span> <span class="n">la</span> <span class="n">date</span> <span class="n">de</span> <span class="n">fin</span> <span class="n">la</span> <span class="n">plus</span> <span class="n">récente</span>
 </pre></div>
 
      </div>
