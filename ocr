@@ -186,10 +186,10 @@ from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 import pypandoc
 
 # Chemin du dossier contenant les fichiers PDF
-pdf_directory = r"swift\data\1124\20112024\entrant\MT910\input"
+pdf_directory = r"input"
 
 # Chemin du dossier de sortie
-output_directory = r"swift\data\1124\20112024\entrant\MT910\output"
+output_directory = r"\output"
 
 # Fonction pour extraire le texte du PDF
 def extract_text_from_pdf(pdf_path):
@@ -287,7 +287,7 @@ def process_pdfs_in_directory(pdf_directory, output_directory):
             header = doc.sections[0].header
             header_paragraph_left = header.paragraphs[0]
             header_run_left = header_paragraph_left.add_run()
-            logo_path = r"swift\data\logo.png"
+            logo_path = r"data\logo.png"
               # Assurez-vous que le chemin du logo est correct
             header_run_left.add_picture(logo_path, width=Inches(1.5))
             header_paragraph_left.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
@@ -332,3 +332,177 @@ def process_pdfs_in_directory(pdf_directory, output_directory):
 
 # Exécuter le traitement sur les fichiers PDF
 process_pdfs_in_directory(pdf_directory, output_directory)
+
+****************************************** surveillance de dossier
+import os
+from PyPDF2 import PdfReader
+import re
+from docx import Document
+from docx.shared import Inches, Pt
+from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+import pypandoc
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
+import time
+
+# Chemin du dossier contenant les fichiers PDF
+pdf_directory = r"\input"
+
+# Chemin du dossier de sortie
+output_directory = r"output"
+
+# Fonction pour extraire le texte du PDF
+def extract_text_from_pdf(pdf_path):
+    reader = PdfReader(pdf_path)
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text()
+    return text
+
+# Fonction pour extraire les informations avant et après "Faite nous confiance"
+def extract_faite_nous_confiance(text):
+    before_faite_match = re.search(r'(.*?)Faite nous confiance', text, re.DOTALL)
+    if before_faite_match:
+        before_faite_text = before_faite_match.group(1).strip()
+    else:
+        before_faite_text = "Aucune ligne trouvée avant 'Faite nous confiance'."
+
+    after_faite_match = re.search(r'Faite nous confiance(.*?)Message Text', text, re.DOTALL)
+    if after_faite_match:
+        after_faite_text = after_faite_match.group(0).strip()
+    else:
+        after_faite_text = "Aucune ligne trouvée entre 'Faite nous confiance' et 'Message Text'."
+
+    return before_faite_text, after_faite_text
+
+# Fonction pour extraire les lignes 20 et 32A
+def extract_lines_20_32A(text):
+    line_20 = re.search(r'20:\s*Sender\'s Reference(.*?)(?=\n\d{2}[A-Z]:|$)', text, re.DOTALL)
+    if line_20:
+        line_20_text = line_20.group(0).strip()
+    else:
+        line_20_text = "Aucune ligne trouvée pour '20:'."
+
+    line_32A = re.search(r'32A:\s*Val Dte/Curr/Interbnk Settld Amt(.*?)(?=\n\d{2}[A-Z]:|$)', text, re.DOTALL)
+    if line_32A:
+        line_32A_text = line_32A.group(0).strip()
+    else:
+        line_32A_text = "Aucune ligne trouvée pour '32A:'."
+
+    return line_20_text, line_32A_text
+
+# Fonction pour extraire les infos spécifiques de 72A et 72B
+def extract_info_72(text):
+    text_cleaned = re.sub(r'\s+', ' ', text).strip()
+
+    match_72A = re.search(r'ORxx\s*/(.*?)\/BExx', text_cleaned)
+    if match_72A:
+        info_72A = match_72A.group(1).strip()
+    else:
+        info_72A = "Aucune information trouvée entre 'ORxx/' et '/BExx/'."
+
+    match_72B = re.search(r"/BExx/(.*?)\/FOR", text_cleaned)
+    if match_72B:
+        info_72B = match_72B.group(1).strip()
+    else:
+        info_72B = "Aucune information trouvée entre '/BExx/' et '/FOR'."
+
+    return info_72A, info_72B
+
+# Fonction pour extraire les informations après 'Message Trailer'
+def extract_after_message_trailer(text):
+    after_message_trailer = re.search(r'(Message Trailer.*)', text, re.DOTALL)
+    if after_message_trailer:
+        after_message_trailer_text = after_message_trailer.group(1).strip()
+    else:
+        after_message_trailer_text = "Aucune ligne trouvée après 'Message Trailer'."
+
+    return after_message_trailer_text
+
+# Fonction principale pour traiter un fichier PDF
+def process_pdf(pdf_path, output_directory):
+    filename = os.path.basename(pdf_path)
+    print(f"Traitement du fichier : {filename}")
+    
+    # Extraction du texte du fichier PDF
+    text = extract_text_from_pdf(pdf_path)
+    
+    # Extraction des informations spécifiques
+    before_faite_text, after_faite_text = extract_faite_nous_confiance(text)
+    line_20_text, line_32A_text = extract_lines_20_32A(text)
+    info_72A, info_72B = extract_info_72(text)
+    after_message_trailer_text = extract_after_message_trailer(text)
+    
+    # Créer un nouveau document Word pour chaque fichier
+    doc = Document()
+    
+    # Ajouter une section pour l'en-tête
+    header = doc.sections[0].header
+    header_paragraph_left = header.paragraphs[0]
+    header_run_left = header_paragraph_left.add_run()
+    logo_path = r"data\logo.png"
+    header_run_left.add_picture(logo_path, width=Inches(1.5))
+    header_paragraph_left.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
+
+    # Ajouter un autre paragraphe pour le texte à droite
+    header_paragraph_right = header.add_paragraph()
+    header_paragraph_right.text = before_faite_text
+    header_paragraph_right.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
+
+    # Ajouter le contenu principal dans le corps du document
+    doc.add_paragraph(after_faite_text)
+    doc.add_paragraph(line_20_text)
+    doc.add_paragraph(line_32A_text)
+    doc.add_paragraph(f"72A(50 F): {info_72A}")
+    doc.add_paragraph(f"72B(59): {info_72B}")
+
+    # Ajouter un pied de page
+    footer = doc.sections[0].footer
+    footer_paragraph = footer.paragraphs[0]
+    footer_paragraph.text = after_message_trailer_text
+
+    # Sauvegarder le document Word
+    doc_filename = os.path.splitext(filename)[0] + ".docx"
+    doc_output_path = os.path.join(output_directory, doc_filename)
+    doc.save(doc_output_path)
+
+    # Convertir le document Word en PDF
+    pdf_filename = os.path.splitext(filename)[0] + ".pdf"
+    pdf_output_path = os.path.join(output_directory, pdf_filename)
+    try:
+        output = pypandoc.convert_file(doc_output_path, 'pdf', outputfile=pdf_output_path)
+        print(f"Document converti en PDF : {pdf_output_path}")
+    except Exception as e:
+        print(f"Erreur lors de la conversion en PDF : {e}")
+
+    # Supprimer le fichier Word temporaire
+    try:
+        #os.remove(doc_output_path)
+        print(f"Le fichier temporaire {doc_output_path} a été supprimé.")
+    except Exception as e:
+        print(f"Erreur lors de la suppression du fichier temporaire : {e}")
+
+# Définir un gestionnaire d'événements pour surveiller le dossier
+class NewFileHandler(FileSystemEventHandler):
+    def on_created(self, event):
+        if not event.is_directory and event.src_path.endswith(".pdf"):
+            print(f"Nouvelle arrivée de fichier : {event.src_path}")
+            process_pdf(event.src_path, output_directory)
+
+# Initialisation de l'observateur
+event_handler = NewFileHandler()
+observer = Observer()
+observer.schedule(event_handler, path=pdf_directory, recursive=False)
+
+# Démarrer la surveillance
+print(f"Surveillance du dossier : {pdf_directory}")
+observer.start()
+
+try:
+    while True:
+        time.sleep(1)  # Garder le script en fonctionnement
+except KeyboardInterrupt:
+    observer.stop()
+    print("\nArrêt de la surveillance...")
+observer.join()
+
