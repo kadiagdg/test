@@ -506,3 +506,520 @@ except KeyboardInterrupt:
     print("\nArrêt de la surveillance...")
 observer.join()
 
+__________________________________ PYCHARM 19112024
+import os
+from PyPDF2 import PdfReader
+import re
+from docx import Document
+from docx.shared import Inches
+from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+import pypandoc
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
+import time
+
+# Chemin du dossier contenant les fichiers PDF
+pdf_directory = r"\input"
+
+# Chemin du dossier de sortie
+output_directory = r"\output"
+
+# Fonction pour extraire le texte du PDF
+def extract_text_from_pdf(pdf_path):
+    reader = PdfReader(pdf_path)
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text()
+    return text
+
+# Fonction pour extraire les informations avant et après "Faite nous confiance"
+def extract_faite_nous_confiance(text):
+    before_faite_match = re.search(r'(.*?)Faite nous confiance', text, re.DOTALL)
+    before_faite_text = before_faite_match.group(1).strip() if before_faite_match else "Aucune ligne trouvée avant 'Faite nous confiance'."
+
+    after_faite_match = re.search(r'Faite nous confiance(.*?)Message Text', text, re.DOTALL)
+    after_faite_text = after_faite_match.group(1).strip() if after_faite_match else "Aucune ligne trouvée entre 'Faite nous confiance' et 'Message Text'."
+
+    return before_faite_text, after_faite_text
+
+# Fonction pour extraire les lignes 20 et 32A
+def extract_lines_20_32A(text):
+    line_20 = re.search(r'20:\s*Sender\'s Reference(.*?)(?=\n\d{2}[A-Z]:|$)', text, re.DOTALL)
+    line_20_text = line_20.group(0).strip() if line_20 else "Aucune ligne trouvée pour '20:'."
+
+    line_32A = re.search(r'32A:\s*Val Dte/Curr/Interbnk Settld Amt(.*?)(?=\n\d{2}[A-Z]:|$)', text, re.DOTALL)
+    line_32A_text = line_32A.group(0).strip() if line_32A else "Aucune ligne trouvée pour '32A:'."
+
+    return line_20_text, line_32A_text
+
+# Fonction pour extraire les infos spécifiques de 72A et 72B
+def extract_info_72(text):
+    text_cleaned = re.sub(r'\s+', ' ', text).strip()
+
+    match_72A = re.search(r'ORDP\s*/(.*?)\/BENM', text_cleaned)
+    info_72A = match_72A.group(1).strip() if match_72A else None
+
+    match_72B = re.search(r"/BENM/(.*?)\/FOR", text_cleaned)
+    info_72B = match_72B.group(1).strip() if match_72B else None
+
+    return info_72A, info_72B
+
+# Fonction pour extraire les informations après 'Message Trailer'
+def extract_after_message_trailer(text):
+    after_message_trailer = re.search(r'(Message Trailer.*)', text, re.DOTALL)
+    return after_message_trailer.group(1).strip() if after_message_trailer else "Aucune ligne trouvée après 'Message Trailer'."
+
+# Fonction principale pour traiter tous les fichiers PDF dans le dossier
+def process_pdfs_in_directory(pdf_directory, output_directory):
+    # Créer le répertoire de sortie s'il n'existe pas
+    if not os.path.exists(output_directory):
+        os.makedirs(output_directory)
+
+    # Parcourir tous les fichiers PDF dans le répertoire
+    for filename in os.listdir(pdf_directory):
+        if filename.endswith(".pdf"):
+            base_filename = os.path.splitext(filename)[0]
+            docx_path = os.path.join(output_directory, f"{base_filename}.docx")
+            pdf_output_path = os.path.join(output_directory, f"{base_filename}.pdf")
+
+            # Vérifier si le fichier existe déjà dans le dossier de sortie
+            if os.path.exists(docx_path) or os.path.exists(pdf_output_path):
+                print(f"Le fichier {filename} a déjà été traité. Ignoré.")
+                continue
+
+            pdf_path = os.path.join(pdf_directory, filename)
+            print(f"Traitement du fichier : {filename}")
+            
+            # Extraction du texte du fichier PDF
+            text = extract_text_from_pdf(pdf_path)
+            
+            # Vérifier si la ligne 72 existe dans le texte
+            info_72A, info_72B = extract_info_72(text)
+            if not info_72A or not info_72B:  # Si la ligne 72A ou 72B est absente
+                print(f"Le fichier {filename} ne contient pas la ligne 72. Ignoré.")
+                continue
+
+            # Extraction des autres informations spécifiques
+            before_faite_text, after_faite_text = extract_faite_nous_confiance(text)
+            line_20_text, line_32A_text = extract_lines_20_32A(text)
+            after_message_trailer_text = extract_after_message_trailer(text)
+            
+            # Créer un nouveau document Word
+            doc = Document()
+            header = doc.sections[0].header
+            header_paragraph_left = header.paragraphs[0]
+            header_run_left = header_paragraph_left.add_run()
+            logo_path = r"\data\logo.png" # Assurez-vous que le chemin du logo est correct
+            header_run_left.add_picture(logo_path, width=Inches(1.5))
+            header_paragraph_left.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
+
+            doc.add_paragraph(after_faite_text)
+            doc.add_paragraph(line_20_text)
+            doc.add_paragraph(line_32A_text)
+            doc.add_paragraph(f"72A(50 F): {info_72A}")
+            doc.add_paragraph(f"72B(59): {info_72B}")
+            
+            # Ajouter un pied de page
+            footer = doc.sections[0].footer
+            footer.paragraphs[0].text = after_message_trailer_text
+
+            # Sauvegarder le document Word
+            doc.save(docx_path)
+            print("______", docx_path)
+
+            # Convertir le document Word en PDF
+            try:
+                pypandoc.convert_file(docx_path, 'pdf', outputfile=pdf_output_path)
+                print(f"Document converti en PDF : {pdf_output_path}")
+            except Exception as e:
+                print(f"Erreur lors de la conversion en PDF : {e}")
+                
+            # Supprimer le fichier Word temporaire
+            try:
+                #os.remove(docx_path)
+                print(f"Le fichier temporaire {docx_path} a été supprimé.")
+            except Exception as e:
+                print(f"Erreur lors de la suppression du fichier temporaire : {e}")
+
+# Classe pour gérer les événements du système de fichiers
+class PDFHandler(FileSystemEventHandler):
+    def on_created(self, event):
+        if event.src_path.endswith('.pdf'):
+            print(f" Nouveau fichier PDF détecté: {event.src_path}")
+            process_pdfs_in_directory(pdf_directory, output_directory)
+
+# Fonction pour démarrer la surveillance du répertoire
+def start_monitoring(pdf_directory):
+    event_handler = PDFHandler()
+    observer = Observer()
+    observer.schedule(event_handler, pdf_directory, recursive=False)
+    observer.start()
+
+    try:
+        while True:
+            time.sleep(1)  # Attendre de nouveaux événements
+    except KeyboardInterrupt:
+        observer.stop()
+    observer.join()
+
+# Démarrer la surveillance
+start_monitoring(pdf_directory)
+
+------------------------------------------------
+import os
+from datetime import datetime
+from PyPDF2 import PdfReader
+import re
+from docx import Document
+from docx.shared import Inches
+from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+import pypandoc
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
+import time
+
+# Fonction pour générer les chemins dynamiques
+def get_dynamic_paths(base_directory):
+    today = datetime.now()
+    # Format des dossiers pour le mois et l'année selon votre structure (mois + année en 4 chiffres, jour en format jjmmaaaa)
+    daily_folder = today.strftime("%d%m%Y")  # Exemple : 201124 pour le 20 novembre 2024
+    monthly_folder = today.strftime("%m%y")   # Exemple : 1124 pour novembre 2024
+    day_subfolder = os.path.join(base_directory, "swift", "data", monthly_folder, daily_folder, "entrant", "MT910", "input")
+    output_subfolder = os.path.join(base_directory, "swift", "data", monthly_folder, daily_folder, "entrant", "MT910", "output")
+    return day_subfolder, output_subfolder
+
+# Fonction pour extraire le texte du PDF
+def extract_text_from_pdf(pdf_path):
+    reader = PdfReader(pdf_path)
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text()
+    return text
+
+# Fonction pour extraire les informations avant et après "Faite nous confiance"
+def extract_faite_nous_confiance(text):
+    before_faite_match = re.search(r'(.*?)Faite nous confiance', text, re.DOTALL)
+    before_faite_text = before_faite_match.group(1).strip() if before_faite_match else "Aucune ligne trouvée avant 'Faite nous confiance'"
+
+    after_faite_match = re.search(r'Faite nous confiance(.*?)Message Text', text, re.DOTALL)
+    after_faite_text = after_faite_match.group(1).strip() if after_faite_match else "Aucune ligne trouvée entre 'Faite nous confiance' et 'Message Text'"
+
+    return before_faite_text, after_faite_text
+
+# Fonction pour extraire les lignes 20 et 32A
+def extract_lines_20_32A(text):
+    line_20 = re.search(r'20:\s*Sender\'s Reference(.*?)(?=\n\d{2}[A-Z]:|$)', text, re.DOTALL)
+    line_20_text = line_20.group(0).strip() if line_20 else "Aucune ligne trouvée pour '20:'"
+
+    line_32A = re.search(r'32A:\s*Val Dte/Curr/Interbnk Settld Amt(.*?)(?=\n\d{2}[A-Z]:|$)', text, re.DOTALL)
+    line_32A_text = line_32A.group(0).strip() if line_32A else "Aucune ligne trouvée pour '32A:'"
+
+    return line_20_text, line_32A_text
+
+# Fonction pour extraire les infos spécifiques de 72A et 72B
+def extract_info_72(text):
+    text_cleaned = re.sub(r'\s+', ' ', text).strip()
+
+    match_72A = re.search(r'ORDP\s*/(.*?)\/BENM', text_cleaned)
+    info_72A = match_72A.group(1).strip() if match_72A else "Aucune information pour 72A"
+
+    match_72B = re.search(r"/BENM/(.*?)\/FOR", text_cleaned)
+    info_72B = match_72B.group(1).strip() if match_72B else "Aucune information pour 72B"
+
+    return info_72A, info_72B
+
+# Fonction pour extraire les informations après 'Message Trailer'
+def extract_after_message_trailer(text):
+    after_message_trailer = re.search(r'(Message Trailer.*)', text, re.DOTALL)
+    return after_message_trailer.group(1).strip() if after_message_trailer else "Aucune ligne trouvée après 'Message Trailer'"
+
+# Fonction principale pour traiter tous les fichiers PDF dans le dossier
+def process_pdfs_in_directory(pdf_directory, output_directory):
+    if not os.path.exists(output_directory):
+        os.makedirs(output_directory)
+
+    for filename in os.listdir(pdf_directory):
+        if filename.endswith(".pdf"):
+            base_filename = os.path.splitext(filename)[0]
+            docx_path = os.path.join(output_directory, f"{base_filename}.docx")
+            pdf_output_path = os.path.join(output_directory, f"{base_filename}.pdf")
+
+            # Si le fichier a déjà été traité, on l'ignore
+            if os.path.exists(docx_path) or os.path.exists(pdf_output_path):
+                print(f"Le fichier {filename} a déjà été traité. Ignoré.")
+                continue
+
+            pdf_path = os.path.join(pdf_directory, filename)
+            print(f"Traitement du fichier : {filename}")
+
+            text = extract_text_from_pdf(pdf_path)
+            info_72A, info_72B = extract_info_72(text)
+            if not info_72A or not info_72B:
+                print(f"Le fichier {filename} ne contient pas la ligne 72. Ignoré.")
+                continue
+
+            before_faite_text, after_faite_text = extract_faite_nous_confiance(text)
+            line_20_text, line_32A_text = extract_lines_20_32A(text)
+            after_message_trailer_text = extract_after_message_trailer(text)
+
+            doc = Document()
+            header = doc.sections[0].header
+            header_paragraph_left = header.paragraphs[0]
+            header_run_left = header_paragraph_left.add_run()
+
+            # Assurez-vous que ce chemin existe
+            logo_path = r"\logo.png" # Ajustez ce chemin
+
+            # Ajouter le logo dans l'en-tête
+            header_run_left.add_picture(logo_path, width=Inches(1.5))
+            header_paragraph_left.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
+
+            # Ajouter le contenu du PDF dans le document Word
+            doc.add_paragraph(after_faite_text)
+            doc.add_paragraph(line_20_text)
+            doc.add_paragraph(line_32A_text)
+            doc.add_paragraph(f"72A(50 F): {info_72A}")
+            doc.add_paragraph(f"72B(59): {info_72B}")
+
+            footer = doc.sections[0].footer
+            footer.paragraphs[0].text = after_message_trailer_text
+
+            # Sauvegarder le fichier docx
+            doc.save(docx_path)
+            print(f"Document Word sauvegardé : {docx_path}")
+
+            try:
+                # Conversion du document Word en PDF
+                pypandoc.convert_file(docx_path, 'pdf', outputfile=pdf_output_path)
+                print(f"Document converti en PDF : {pdf_output_path}")
+            except Exception as e:
+                print(f"Erreur lors de la conversion en PDF : {e}")
+
+# Classe pour gérer les événements du système de fichiers
+class PDFHandler(FileSystemEventHandler):
+    def on_created(self, event):
+        if event.src_path.endswith('.pdf'):
+            print(f" Nouveau fichier PDF détecté: {event.src_path}")
+            pdf_directory, output_directory = get_dynamic_paths(base_directory)
+            process_pdfs_in_directory(pdf_directory, output_directory)
+            print("_________________________-------",pdf_directory, output_directory)
+
+    def on_modified(self, event):
+        # Pour capturer les modifications de fichiers également
+        print(f"Fichier modifié : {event.src_path}")
+
+# Fonction pour démarrer la surveillance du répertoire
+def start_monitoring(base_directory):
+    pdf_directory, output_directory = get_dynamic_paths(base_directory)
+
+    # Vérification des répertoires
+    if not os.path.exists(pdf_directory):
+        os.makedirs(pdf_directory)
+    if not os.path.exists(output_directory):
+        os.makedirs(output_directory)
+
+    event_handler = PDFHandler()
+    observer = Observer()
+    observer.schedule(event_handler, pdf_directory, recursive=False)
+    observer.start()
+
+    print(f"Surveillance du répertoire {pdf_directory} démarrée...")
+
+    try:
+        while True:
+            time.sleep(1)  # Attendre de nouveaux événements
+    except KeyboardInterrupt:
+        observer.stop()
+    observer.join()
+
+# Démarrer la surveillance avec le répertoire de base
+base_directory  = ""
+start_monitoring(base_directory)
+
+
+_________________________________ les trois verif
+
+import os
+from datetime import datetime
+from PyPDF2 import PdfReader
+import re
+from docx import Document
+from docx.shared import Inches
+from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+import pypandoc
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
+import time
+
+# Fonction pour générer les chemins dynamiques
+def get_dynamic_paths(base_directory):
+    today = datetime.now()
+    # Format des dossiers pour le mois et l'année selon votre structure
+    daily_folder = today.strftime("%d%m%Y")  # Exemple : 201124 pour le 20 novembre 2024
+    monthly_folder = today.strftime("%m%y")   # Exemple : 1224 pour décembre 2024
+    day_subfolder = os.path.join(base_directory, "swift", "data", monthly_folder, daily_folder, "entrant", "MT910", "input")
+    output_subfolder = os.path.join(base_directory, "swift", "data", monthly_folder, daily_folder, "entrant", "MT910", "output")
+    return day_subfolder, output_subfolder, monthly_folder, daily_folder
+
+# Fonction pour extraire le texte du PDF
+def extract_text_from_pdf(pdf_path):
+    reader = PdfReader(pdf_path)
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text()
+    return text
+
+# Fonction pour extraire les informations avant et après "Faite nous confiance"
+def extract_faite_nous_confiance(text):
+    before_faite_match = re.search(r'(.*?)Faite nous confiance', text, re.DOTALL)
+    before_faite_text = before_faite_match.group(1).strip() if before_faite_match else "Aucune ligne trouvée avant 'Faite nous confiance'"
+
+    after_faite_match = re.search(r'Faite nous confiance(.*?)Message Text', text, re.DOTALL)
+    after_faite_text = after_faite_match.group(1).strip() if after_faite_match else "Aucune ligne trouvée entre 'Faite nous confiance' et 'Message Text'"
+
+    return before_faite_text, after_faite_text
+
+# Fonction pour extraire les lignes 20 et 32A
+def extract_lines_20_32A(text):
+    line_20 = re.search(r'20:\s*Sender\'s Reference(.*?)(?=\n\d{2}[A-Z]:|$)', text, re.DOTALL)
+    line_20_text = line_20.group(0).strip() if line_20 else "Aucune ligne trouvée pour '20:'"
+
+    line_32A = re.search(r'32A:\s*Val Dte/Curr/Interbnk Settld Amt(.*?)(?=\n\d{2}[A-Z]:|$)', text, re.DOTALL)
+    line_32A_text = line_32A.group(0).strip() if line_32A else "Aucune ligne trouvée pour '32A:'"
+
+    return line_20_text, line_32A_text
+
+# Fonction pour extraire les infos spécifiques de 72A et 72B
+def extract_info_72(text):
+    text_cleaned = re.sub(r'\s+', ' ', text).strip()
+
+    match_72A = re.search(r'ORDP\s*/(.*?)\/BENM', text_cleaned)
+    info_72A = match_72A.group(1).strip() if match_72A else "Aucune information pour 72A"
+
+    match_72B = re.search(r"/BENM/(.*?)\/FOR", text_cleaned)
+    info_72B = match_72B.group(1).strip() if match_72B else "Aucune information pour 72B"
+
+    return info_72A, info_72B
+
+# Fonction pour extraire les informations après 'Message Trailer'
+def extract_after_message_trailer(text):
+    after_message_trailer = re.search(r'(Message Trailer.*)', text, re.DOTALL)
+    return after_message_trailer.group(1).strip() if after_message_trailer else "Aucune ligne trouvée après 'Message Trailer'"
+
+# Fonction principale pour traiter tous les fichiers PDF dans le dossier
+def process_pdfs_in_directory(pdf_directory, output_directory):
+    if not os.path.exists(output_directory):
+        os.makedirs(output_directory)
+
+    for filename in os.listdir(pdf_directory):
+        if filename.endswith(".pdf"):
+            base_filename = os.path.splitext(filename)[0]
+            docx_path = os.path.join(output_directory, f"{base_filename}.docx")
+            pdf_output_path = os.path.join(output_directory, f"{base_filename}.pdf")
+
+            # Si le fichier a déjà été traité, on l'ignore
+            if os.path.exists(docx_path) or os.path.exists(pdf_output_path):
+                print(f"Le fichier {filename} a déjà été traité. Ignoré.")
+                continue
+
+            pdf_path = os.path.join(pdf_directory, filename)
+            print(f"Traitement du fichier : {filename}")
+
+            text = extract_text_from_pdf(pdf_path)
+            info_72A, info_72B = extract_info_72(text)
+            if not info_72A or not info_72B:
+                print(f"Le fichier {filename} ne contient pas la ligne 72. Ignoré.")
+                continue
+
+            before_faite_text, after_faite_text = extract_faite_nous_confiance(text)
+            line_20_text, line_32A_text = extract_lines_20_32A(text)
+            after_message_trailer_text = extract_after_message_trailer(text)
+
+            doc = Document()
+            header = doc.sections[0].header
+            header_paragraph_left = header.paragraphs[0]
+            header_run_left = header_paragraph_left.add_run()
+
+            # Assurez-vous que ce chemin existe
+            logo_path = r"\logo.png" # Ajustez ce chemin
+
+            # Ajouter le logo dans l'en-tête
+            header_run_left.add_picture(logo_path, width=Inches(1.5))
+            header_paragraph_left.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
+
+            # Ajouter le contenu du PDF dans le document Word
+            doc.add_paragraph(after_faite_text)
+            doc.add_paragraph(line_20_text)
+            doc.add_paragraph(line_32A_text)
+            doc.add_paragraph(f"72A(50 F): {info_72A}")
+            doc.add_paragraph(f"72B(59): {info_72B}")
+
+            footer = doc.sections[0].footer
+            footer.paragraphs[0].text = after_message_trailer_text
+
+            # Sauvegarder le fichier docx
+            doc.save(docx_path)
+            print(f"Document Word sauvegardé : {docx_path}")
+
+            try:
+                # Conversion du document Word en PDF
+                pypandoc.convert_file(docx_path, 'pdf', outputfile=pdf_output_path)
+                print(f"Document converti en PDF : {pdf_output_path}")
+            except Exception as e:
+                print(f"Erreur lors de la conversion en PDF : {e}")
+                
+            # Supprimer le fichier Word temporaire
+            try:
+                #os.remove(word_output_path)
+                print(f"Le fichier temporaire {docx_path} a été supprimé.")
+            except Exception as e:
+                print(f"Erreur lors de la suppression du fichier temporaire : {e}")
+
+            print(f"Le document a été généré et sauvegardé sous {docx_path}")
+
+
+# Classe pour gérer les événements du système de fichiers
+class PDFHandler(FileSystemEventHandler):
+    def on_created(self, event):
+        # Surveillance des répertoires mensuels, journaliers et input
+        if event.is_directory:
+            print(f"Nouveau répertoire détecté : {event.src_path}")
+            base_directory = r"data"
+            pdf_directory, output_directory, monthly_folder, daily_folder = get_dynamic_paths(base_directory)
+            
+            # Vérification de la création de dossiers mensuels ou journaliers
+            if os.path.basename(event.src_path) == monthly_folder:
+                print(f"Nouveau dossier mensuel détecté : {monthly_folder}")
+            elif os.path.basename(event.src_path) == daily_folder:
+                print(f"Nouveau dossier journalier détecté : {daily_folder}")
+            elif 'input' in event.src_path:
+                # Surveillance des fichiers PDF dans 'input'
+                print(f"Nouveau dossier 'input' détecté : {event.src_path}")
+                process_pdfs_in_directory(pdf_directory, output_directory)
+        elif event.src_path.endswith('.pdf'):
+            print(f" Nouveau fichier PDF détecté: {event.src_path}")
+            pdf_directory, output_directory, _, _ = get_dynamic_paths(base_directory)
+            process_pdfs_in_directory(pdf_directory, output_directory)
+            print("_________________________")
+
+# Fonction de surveillance
+def start_monitoring(base_directory):
+    event_handler = PDFHandler()
+    observer = Observer()
+    observer.schedule(event_handler, base_directory, recursive=True)
+    observer.start()
+
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        observer.stop()
+        print("Surveillance arrêtée.")
+    observer.join()
+
+# Exemple d'utilisation
+base_directory = r"all chemin\data"
+start_monitoring(base_directory)
+
+
+
