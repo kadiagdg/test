@@ -1,65 +1,183 @@
+# anonymization_module.py
+import os
 import json
 import pandas as pd
-import re
+from cryptography.fernet import Fernet
+import hmac
+import hashlib
+from dotenv import load_dotenv, set_key, dotenv_values
 
-# Initialiser des listes pour stocker les lignes nettoyées correctes et les lignes avec des erreurs
-cleaned_lines_ok = []
-cleaned_lines_nook = []
+# Chemin vers le fichier .env
+env_file = ".env"
 
-def preprocess_json(json_str):
-    try:
-        # Enlever les caractères < et >
-        cleaned_str = re.sub(r'<|>', '', json_str)
+# Vérifier si le fichier .env existe
+if not os.path.exists(env_file):
+    # Créer un fichier .env vide
+    with open(env_file, "w") as f:
+        pass
 
-        # Remplacer <script> et </script> par 'script'
-        cleaned_str = re.sub(r'<script>', 'script_', cleaned_str)
-        cleaned_str = re.sub(r'</script>', '/script_', cleaned_str)
+# Charger les variables d'environnement
+env_vars = dotenv_values(env_file)
 
-        # Convertir <123> en '123'
-        cleaned_str = re.sub(r'<(\d+)>', r"'\1'", cleaned_str)
+# Vérifier si les clés existent dans .env
+if "FERNET_KEY" not in env_vars or "HMAC_KEY" not in env_vars:
+    # Générer une clé Fernet
+    fernet_key = Fernet.generate_key().decode()  # Convertir en chaîne pour le stockage
 
-        # Ajouter un double backslash avant chaque backslash dans la chaîne
-        cleaned_str = cleaned_str.replace('\\', '\\\\')
+    # Générer une clé HMAC
+    hmac_key = os.urandom(32).hex()  # Générer 32 bytes aléatoires et convertir en hexadécimal
 
-        return cleaned_str
+    # Enregistrer les clés dans .env
+    set_key(env_file, "FERNET_KEY", fernet_key)
+    set_key(env_file, "HMAC_KEY", hmac_key)
 
-    except Exception as e:
-        print(f"Erreur lors du prétraitement : {e}")
-        return None
+    print("Nouvelles clés générées et enregistrées dans .env.")
+else:
+    print("Les clés existent déjà dans .env.")
 
-# Spécifiez le chemin vers votre fichier usage.log
-fichier_log_path = "C:/Users/Utilisateur/Documents/VH PROJECTS/facebook/exemple.log"
+# Charger les variables d'environnement
+load_dotenv()
 
-# Lecture du fichier log initial
-with open(fichier_log_path, 'r') as file:
-    lignes = file.readlines()
+# Récupérer les clés
+fernet_key = os.getenv("FERNET_KEY").encode()  # Convertir en bytes pour Fernet
+hmac_key = bytes.fromhex(os.getenv("HMAC_KEY"))  # Convertir en bytes pour HMAC
 
-    for row in lignes:
-        print(row)
-        
-        # Appliquer la prétraitement et gérer les erreurs
-        cleaned_json_str = preprocess_json(row)
+# Initialiser Fernet avec la clé
+cipher_suite = Fernet(fernet_key)
 
-        if cleaned_json_str is not None:
-            try:
-                # Charger la chaîne JSON nettoyée en tant que dictionnaire Python
-                data_dict = json.loads(cleaned_json_str)
-                # Ajouter le dictionnaire à la liste des lignes correctes
-                cleaned_lines_ok.append(data_dict)
-            except json.JSONDecodeError as e:
-                print(f"Erreur lors de la conversion JSON : {e}")
-                # Ajouter la ligne avec une erreur à la liste des lignes avec des erreurs
-                cleaned_lines_nook.append(row)
+# Fonction pour chiffrer un champ avec Fernet
+def encrypt_symmetric(data):
+    return cipher_suite.encrypt(data.encode()).decode()
 
-# Créer un DataFrame à partir de la liste de dictionnaires des lignes correctes
-df_ok = pd.DataFrame(cleaned_lines_ok)
+# Fonction pour déchiffrer un champ avec Fernet
+def decrypt_symmetric(data):
+    return cipher_suite.decrypt(data.encode()).decode()
 
-# Créer un DataFrame à partir de la liste des lignes avec des erreurs
-df_nook = pd.DataFrame({'Lignes avec Erreurs': cleaned_lines_nook})
+# Fonction pour hacher un champ avec HMAC
+def anonymize_hash(data):
+    hmac_hash = hmac.new(hmac_key, data.encode(), hashlib.sha256)
+    return hmac_hash.hexdigest()[:10]  # Retourne les 10 premiers caractères du hachage
 
-# Afficher les DataFrames
-print("DataFrame des lignes correctes :")
-print(df_ok)
+# Fonction pour anonymiser un DataFrame
+def anonymize_dataframe(df):
+    # Créer des tables de correspondance pour les colonnes hachées
+    mapping_tables = {
+        "nc": {},
+        "id_cl": {},
+        "code_ag": {},
+    }
 
-print("\nDataFrame des lignes avec des erreurs :")
-print(df_nook)
+    # Anonymisation des données
+    df_anonymized = df.copy()
+
+    # Hacher les colonnes nc, id_cl et code_ag
+    for column in ["nc", "id_cl", "code_ag"]:
+        for value in df[column].unique():
+            mapping_tables[column][value] = anonymize_hash(value)
+        df_anonymized[column] = df_anonymized[column].map(mapping_tables[column])
+
+    # Chiffrer les colonnes nom_cl et nom_ag
+    df_anonymized["nom_cl"] = df_anonymized["nom_cl"].apply(encrypt_symmetric)
+    df_anonymized["nom_ag"] = df_anonymized["nom_ag"].apply(encrypt_symmetric)
+
+    # Sauvegarder les tables de correspondance dans un fichier chiffré
+    with open("mapping_tables_encrypted.json", "wb") as f:
+        encrypted_mapping = cipher_suite.encrypt(json.dumps(mapping_tables).encode())
+        f.write(encrypted_mapping)
+
+    return df_anonymized
+
+# Fonction de désanonymisation encapsulée
+def get_deanonymization_function():
+    # Charger et déchiffrer les tables de correspondance
+    with open("mapping_tables_encrypted.json", "rb") as f:
+        encrypted_mapping = f.read()
+        decrypted_mapping = cipher_suite.decrypt(encrypted_mapping).decode()
+        mapping_tables = json.loads(decrypted_mapping)
+
+    # Fonction interne pour désanonymiser un DataFrame
+    def deanonymize_dataframe(df_anonymized):
+        df_deanonymized = df_anonymized.copy()
+
+        # Déchiffrer les colonnes nom_cl et nom_ag
+        df_deanonymized["nom_cl"] = df_deanonymized["nom_cl"].apply(decrypt_symmetric)
+        df_deanonymized["nom_ag"] = df_deanonymized["nom_ag"].apply(decrypt_symmetric)
+
+        # Désanonymiser les colonnes nc, id_cl et code_ag
+        for column in ["nc", "id_cl", "code_ag"]:
+            reverse_mapping_table = {v: k for k, v in mapping_tables[column].items()}
+            df_deanonymized[column] = df_deanonymized[column].map(reverse_mapping_table)
+
+        return df_deanonymized
+
+    return deanonymize_dataframe
+
+# Charger les données brutes
+df_raw = df.copy()#pd.read_csv("raw_data.csv")
+
+# Anonymiser les données
+df_anonymized = anonymize_dataframe(df_raw)
+
+# Sauvegarder les données anonymisées pour les Data Analysts
+df_anonymized.to_csv("../anonymized_data.csv",sep=';', index=False)
+
+print("Données anonymisées sauvegardées dans anonymized_data.csv.")
+
+-----------------------------------------
+
+# data_analyst_script.py
+import pandas as pd
+
+# Charger les données anonymisées
+df_anonymized = pd.read_csv("anonymized_data.csv")
+
+# Afficher les données anonymisées
+print("DataFrame Anonymisé :")
+print(df_anonymized)
+
+# Les Data Analysts effectuent leurs analyses sur les données anonymisées
+# ...
+
+
+
+-----------------------------------------
+import sys
+import os
+
+# Obtenir le chemin absolu du dossier secure_folder
+secure_folder_path = os.path.join(os.getcwd(), "secure_folder")
+
+# Ajouter le chemin à sys.path
+if secure_folder_path not in sys.path:
+    sys.path.append(secure_folder_path)
+
+# Vérifier que le chemin a été ajouté
+print("Chemin ajouté :", secure_folder_path)
+print("Contenu du dossier :", os.listdir(secure_folder_path))
+
+# Importer la fonction depuis le module
+try:
+    from anonymization_module import get_deanonymization_function
+    print("Importation réussie !")
+except ImportError as e:
+    print("Erreur lors de l'importation :", e)
+    sys.exit(1)  # Quitter le script en cas d'erreur
+
+# Fonction de désanonymisation
+deanonymize_dataframe = get_deanonymization_function()
+
+# Exemple de requête API
+def restitute_data(df_anonymized):
+    # Désanonymiser les données
+    df_deanonymized = deanonymize_dataframe(df_anonymized)
+    return df_deanonymized
+
+# Charger les données anonymisées
+df_anonymized = pd.read_csv("../anonymized_data.csv",sep=';')
+
+# Utilisation dans l'API
+df_deanonymized = restitute_data(df_anonymized)
+
+# Afficher le résultat
+print("DataFrame Désanonymisé :")
+print(df_deanonymized)
