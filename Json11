@@ -181,3 +181,50 @@ df_deanonymized = restitute_data(df_anonymized)
 # Afficher le résultat
 print("DataFrame Désanonymisé :")
 print(df_deanonymized)
+
+___________________
+
+# api_script.py
+import sys
+import os
+import pandas as pd
+
+# Chemin absolu du dossier project (où se trouve anonymization_module.py)
+project_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../project"))
+
+# Ajouter le chemin à sys.path pour importer anonymization_module.py
+if project_path not in sys.path:
+    sys.path.append(project_path)
+
+# Vérifier que le chemin a été ajouté
+print("Chemin ajouté :", project_path)
+
+# Importer la fonction depuis le module
+try:
+    from anonymization_module import get_deanonymization_function
+    print("Importation réussie !")
+except ImportError as e:
+    print("Erreur lors de l'importation :", e)
+    sys.exit(1)  # Quitter le script en cas d'erreur
+
+# Chemin vers les fichiers de données
+anonymized_data_path = os.path.join(project_path, "anonymized_data.csv")
+
+# Fonction de désanonymisation
+deanonymize_dataframe = get_deanonymization_function()
+
+# Exemple de requête API
+def restitute_data(df_anonymized):
+    # Désanonymiser les données
+    df_deanonymized = deanonymize_dataframe(df_anonymized)
+    return df_deanonymized
+
+# Charger les données anonymisées
+df_anonymized = pd.read_csv(anonymized_data_path, sep=';')
+
+# Utilisation dans l'API
+df_deanonymized = restitute_data(df_anonymized)
+
+# Afficher le résultat
+print("DataFrame Désanonymisé :")
+print(df_deanonymized)
