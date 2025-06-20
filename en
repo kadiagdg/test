@@ -1,0 +1,162 @@
+def create_echeance_table(dff):
+    today = datetime.today()
+
+    # Copie sécurisée et conversion des dates
+    dff = dff.copy()
+    dff['date d echeance'] = pd.to_datetime(dff['date d echeance'], errors='coerce')
+    dff['date de mise en place'] = pd.to_datetime(dff['date de mise en place'], errors='coerce')
+
+    # Filtrage des données dans les 3 mois
+    mask = (dff['date d echeance'] >= today) & (dff['date d echeance'] <= today + timedelta(days=90))
+    echeance_3mois = dff.loc[mask].copy()
+
+    if echeance_3mois.empty:
+        return dash_table.DataTable(
+            data=[],
+            columns=[{'name': 'Aucune échéance à venir', 'id': 'info'}],
+            style_cell={'textAlign': 'center', 'fontStyle': 'italic'}
+        )
+
+    # Calcul des jours restants
+    echeance_3mois['Jours restants'] = (echeance_3mois['date d echeance'] - today).dt.days
+    echeance_3mois = echeance_3mois.sort_values('Jours restants')
+
+    # Formatage des colonnes
+    echeance_3mois['date de mise en place'] = echeance_3mois['date de mise en place'].dt.strftime('%d/%m/%Y')
+    echeance_3mois['date d echeance'] = echeance_3mois['date d echeance'].dt.strftime('%d/%m/%Y')
+
+    if 'montant de la garantie' in echeance_3mois.columns:
+        echeance_3mois['montant de la garantie'] = echeance_3mois['montant de la garantie'].apply(
+            lambda x: f"{x:,.2f} €" if pd.notnull(x) else ""
+        )
+
+    # Colonnes à afficher et leur mapping
+    cols_to_display = {
+        'nom client': 'Client',
+        'libelle nature': 'Type garantie',
+        'montant de la garantie': 'Montant',
+        'date de mise en place': 'Mise en place',
+        'date d echeance': 'Échéance',
+        'Jours restants': 'Jours restants',
+        'nom garant': 'Assureur'
+    }
+
+    df_final = echeance_3mois.rename(columns=cols_to_display)
+    
+    # Ajout de la colonne d'action (bouton email)
+    df_final['Envoyer email'] = '📧 Envoyer'
+    
+    # Définition des colonnes pour DataTable
+    columns = [{'name': v, 'id': v} for v in cols_to_display.values()]
+    columns.append({'name': 'Envoyer email', 'id': 'Envoyer email', 'presentation': 'markdown'})
+
+    return dash_table.DataTable(
+        data=df_final.to_dict('records'),
+        columns=columns,
+        
+        style_table={
+            'overflowX': 'auto',
+            'borderRadius': '10px',
+            'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
+            'fontFamily': 'Arial, sans-serif',
+            'margin': '20px 0'
+        },
+        
+        style_header={
+            'backgroundColor': '#3498db',
+            'color': 'white',
+            'fontWeight': 'bold',
+            'textAlign': 'center',
+            'border': 'none',
+            'padding': '12px 15px'
+        },
+        
+        style_cell={
+            'padding': '10px 15px',
+            'textAlign': 'left',
+            'borderBottom': '1px solid #ecf0f1',
+            'minWidth': '120px',
+            'maxWidth': '200px',
+            'whiteSpace': 'normal',
+            'fontSize': '14px'
+        },
+        
+        style_data={
+            'backgroundColor': 'white',
+            'color': '#34495e',
+            'transition': 'background-color 0.3s ease'
+        },
+        
+        style_data_conditional=[
+            {
+                'if': {
+                    'filter_query': '{Jours restants} < 7',
+                    'column_id': 'Jours restants'
+                },
+                'backgroundColor': '#ffebee',
+                'color': '#c62828',
+                'fontWeight': 'bold',
+                'borderLeft': '3px solid #c62828'
+            },
+            {
+                'if': {
+                    'filter_query': '{Jours restants} >= 7 && {Jours restants} < 15',
+                    'column_id': 'Jours restants'
+                },
+                'backgroundColor': '#fff8e1',
+                'color': '#ff8f00',
+                'borderLeft': '3px solid #ff8f00'
+            },
+            {
+                'if': {'row_index': 'odd'},
+                'backgroundColor': '#f8f9fa'
+            },
+            {
+                'if': {'state': 'selected'},
+                'backgroundColor': '#bde0fe',
+                'border': '1px solid #3498db'
+            },
+            {
+                'if': {'column_id': ['Montant', 'Jours restants']},
+                'textAlign': 'center'
+            },
+            {
+                'if': {'column_id': 'Montant'},
+                'fontWeight': 'bold',
+                'color': '#2e7d32'
+            },
+            {
+                'if': {'column_id': 'Envoyer email'},
+                'textAlign': 'center',
+                'cursor': 'pointer'
+            }
+        ],
+        
+        page_size=10,
+        filter_action='native',
+        sort_action='native',
+        sort_mode='multi',
+        page_action='native',
+        
+        tooltip_data=[
+            {
+                column: {'value': str(value), 'type': 'markdown'}
+                for column, value in row.items()
+            } for row in df_final.to_dict('records')
+        ],
+        tooltip_duration=None,
+        
+        style_cell_conditional=[
+            {
+                'if': {'column_id': 'Échéance'},
+                'fontStyle': 'italic'
+            },
+            {
+                'if': {'column_id': 'Client'},
+                'fontWeight': '600'
+            }
+        ],
+        
+        # Gestion du clic sur le bouton email
+        markdown_options={'html': True}
+    )
