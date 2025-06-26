@@ -1,0 +1,166 @@
+
+Partie 0
+Un embedding est une représentation numérique (vecteur) d’un texte (phrase, document, mot) dans un espace vectoriel.
+•	Deux textes similaires auront des vecteurs proches
+
+- cohere pour gérer les embeddings(CohereEmbeddings) et générer les reponses. C’est simple, rapide, et performant en français
+
+ LangChain – L’orchestrateur de composants LLM
+LangChain est une librairie Python open source qui permet de :
+
+loaders, splitters, embeddings
+
+•	Connecter ton LLM (Cohere, OpenAI, Hugging Face, etc.)
+•	connecter des documents (PDF, Word, base de données...)
+•	organiser des chaînes logiques de traitement (retrieval, prompt, génération)
+•	intégrer des outils comme FAISS, MongoDB, APIs internes...
+
+LangChain RetrievalQA :
+      • FAISS retrouve les chunks
+      • Cohere/HF génère la réponse 
+
+Le contexte, c’est le contenu extrait des documents juridiques (PDF, contrats, lois, FAQ…) que l’on fournit au modèle (LLM) pour l’aider à répondre intelligemment à une question
+
+
+Objectif global
+Créer un chatbot intelligent capable de :
+•	comprendre une question juridique en langage naturel,
+•	chercher la bonne réponse dans un ensemble de documents juridiques (PDF, guides, contrats),
+•	générer une réponse claire,
+•	mémoriser les échanges pour les historiser.
+
+Fonctionnement :
+Utilisateur ➔ Flask API (`/chat`) ➔
+    1. Stocke la question dans MongoDB
+    2. Utilise LangChain ochestrateur pour interroger FAISS
+        a. FAISS retrouve les morceaux de texte pertinents, retrouve les chunks proches de la question
+        b. Cohere génère la réponse :
+Il génère ou extrait une réponse structurée
+Il répond dans le langage de l’utilisateur.
+
+    3. Stocke la réponse dans MongoDB (pr historisation, d’entraîner ou améliorer le modèle plus tard)
+    4. Renvoie la réponse à l’utilisateur
+
+LangChain + PyMuPDF : excellent combo.
+
+Stockage des données avec MongoDB
+•	Documents bruts (PDF, DOCX, textes juridiques) ➔ stockés dans une collection documents.
+•	Méta-données (titre, date, type de doc, catégorie) ➔ fields dans chaque document.
+•	Historique de conversation ➔ collection conversations (user_id, timestamp, message_in, message_out).
+
+Partie 1
+Claude ai vs command r de cohere ?
+Tes chuncks donnent la source, numero de page ?
+Nettoyer le texte (OCR, accents)Cohere est sensible au bruit ??
+Lequel tu utilises r le embeding ?
+"Voici des extraits juridiques. Si la question contient un numéro d’article (ex: article 109), cherche précisément cet article dans le contexte."
+Recherche mot clé + embeding (recherche semantique et mot clé)
+-	Extraction des n mots cles juridiques a partir d une liste de mots-clés juridiques definit et qui commence par Article , ajout dans mongodb keywords KeyBERT
+_ etape ajout ds mongodb
+chunk_doc = {
+    "chunk_id": "abc123",
+    "document_id": "contrat-de-travail",
+    "offset": 5,
+    "content": chunk_text,
+    "embedding": vector.tolist(),
+    "keywords": list(set(article_matches + found_keywords))  # évite les doublons}
+Ta reponse cherche dns cmbien de chunck 3, 4 . ?	
+Augmente k dans FAISS
+Pour améliorer les chances que le chunk ressorte
+
+
+Objectif : récupérer l'intégralité de l'article 109, même s'il est découpé sur plusieurs chunks; Lors de l’indexation : garder une trace du contexte d’appartenance
+1-	Lors de l’indexation : garder une trace du contexte d’appartenance
+Ajoute dans chaque chunk :
+•	document_id (nom du fichier source)
+•	offset (position du chunk dans le texte découpé)
+•	article_num: si le chunk contient "Article X", garde "109" (ou "Article 109")
+👉 Cela permet ensuite de retrouver les chunks voisins s’ils font partie du même article
+
+2. Lors de la recherche par mot-clé "Article 109" :
+Tu fais 3 étapes :
+a.	Retrouver le chunk contenant "Article 109"
+b. Récupérer les chunks suivants (voisins)
+Tu peux ensuite récupérer par exemple les 2 ou 3 chunks suivants du même document
+c- Reconstruire le contenu complet de l'article
+Tu fais une concaténation du content : Tu peux même faire un stop automatique dès que tu rencontres "Article 110" dans un chunk suivant (voir bonus plus bas).
+
+BONUS : découpage intelligent dès le départ
+•  Tu peux découper par article entier au lieu de découper à longueur fixe.
+•  Ex : chaque fois que tu vois "Article \d+", tu démarres un nouveau chunk, et tu continues à accumuler jusqu’à "Article \d+" suivant.
+
+
+
+
+
+
+Bien sûr ! Voici un résumé clair, structuré et pédagogique de ta Partie 1 à destination d’un(e) stagiaire — avec indications, explications simples, et conseils pratiques.
+________________________________________
+Résumé Partie 1 – Explications pour stagiaire
+________________________________________
+1. Claude AI vs Command R de Cohere
+•	Claude AI et Command R (Cohere) sont des solutions d’IA pour le traitement du langage naturel (NLP) et les embeddings.
+•	Claude AI est un assistant LLM (Large Language Model) avec une capacité générale de compréhension.
+•	Command R est une API spécialisée dans la recherche sémantique et l’indexation par embeddings.
+•	On utilise souvent Command R (Cohere) pour créer des vecteurs (embeddings) qui permettent de retrouver les passages proches sémantiquement dans une base documentaire.
+________________________________________
+2. Gestion des chunks et métadonnées
+•	Les chunks (morceaux de texte extraits) doivent conserver la source d’où ils viennent, par exemple :
+o	Le nom du document (document_id)
+o	Le numéro de page (si possible)
+o	La position du chunk dans le document (offset)
+•	Cela facilite la traçabilité et la reconstruction des contenus.
+________________________________________
+3. Nettoyage du texte
+•	Avant l’indexation, il faut nettoyer le texte :
+o	Corriger les erreurs OCR (reconnaissance optique de caractères)
+o	Normaliser les accents, ponctuations, espaces…
+•	Cohere est sensible au bruit dans le texte. Un texte propre améliore la qualité des embeddings et donc la pertinence des résultats.
+________________________________________
+4. Embeddings et recherche
+•	Pour les embeddings, on utilise souvent Cohere, car il est efficace et facile à intégrer.
+•	On combine ensuite la recherche sémantique (via embeddings + FAISS) avec une recherche mot-clé classique (ex : rechercher précisément “Article 109” dans les chunks).
+________________________________________
+5. Extraction et ajout de mots-clés juridiques
+•	On définit une liste de mots-clés juridiques (ex : "nullité", "contrat", "Article X", etc.)
+•	Avec des outils comme KeyBERT, on extrait les mots-clés importants dans chaque chunk.
+•	Exemple d’ajout dans MongoDB :
+chunk_doc = {
+    "chunk_id": "abc123",
+    "document_id": "contrat-de-travail",
+    "offset": 5,
+    "content": chunk_text,
+    "embedding": vector.tolist(),
+    "keywords": list(set(article_matches + found_keywords))  # évite les doublons
+}
+________________________________________
+6. Nombre de chunks retournés (paramètre k dans FAISS)
+•	Par défaut, FAISS retourne un nombre limité de chunks (ex : k=4).
+•	Pour ne pas manquer des passages importants, on peut augmenter k (par exemple à 10), c’est-à-dire demander plus de chunks pertinents au moteur de recherche.
+________________________________________
+7. Récupérer l’intégralité d’un article coupé en plusieurs chunks
+Lors de l’indexation :
+•	On conserve dans chaque chunk :
+o	document_id (source)
+o	offset (position dans le document)
+o	article_num (ex: "Article 109" si présent)
+Lors de la recherche :
+1.	Retrouver le chunk contenant “Article 109” (via la recherche mot-clé dans MongoDB).
+2.	Récupérer les chunks voisins suivants du même document (offset +1, +2, …).
+3.	Assembler les contenus de ces chunks pour reconstituer l’article complet.
+________________________________________
+8. BONUS : découpage intelligent dès le départ
+•	Au lieu de découper les textes en morceaux fixes (ex : 500 mots), il vaut mieux découper directement par article :
+o	Chaque fois que l’on trouve “Article X”, on commence un nouveau chunk.
+o	On ajoute tout le texte jusqu’au prochain “Article Y”.
+•	Cela évite que le contenu d’un même article soit coupé en plusieurs morceaux.
+________________________________________
+Conclusion rapide pour la stagiaire
+•	Toujours nettoyer les textes avant traitement.
+•	Indexer les chunks avec métadonnées précises (source, position, numéro d’article).
+•	Combiner recherche mot-clé + recherche sémantique pour plus d’efficacité.
+•	Augmenter le nombre de résultats retournés (k) pour ne rien manquer.
+•	Pour éviter les découpes incomplètes, découper par article plutôt que par taille fixe.
+________________________________________
+Si tu veux, je peux te fournir un exemple de code ou un workflow complet à suivre !
+
