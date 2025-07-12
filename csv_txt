@@ -139,5 +139,106 @@ def traiter_fichiers(dossier):
         print("Erreur globale:", str(e))
         return {"Erreur globale": (None, str(e))}
 
+____________________________________________________________________________________________________
+
+# 📘 RUNBOOK – TRAITEMENT MANUEL DONNÉES
+
+## 1️⃣ Informations Générales
+
+- **Nom du projet / flux de données :**
+- **Propriétaire :**
+- **Date de création :**
+- **Dernière mise à jour :**
+- **Chemin de stockage / dossier partagé :**
+
+---
+
+## 2️⃣ Objectif
+
+- **Description :**
+- **Source(s) :**
+- **Destinataire(s) :**
+
+---
+
+## 3️⃣ Fichiers et Formats
+
+- **Format(s) reçu(s) :**
+- **Nom(s) de fichier attendus :**
+- **Répertoire de réception :**
+- **Répertoire de dépôt final :**
+
+---
+
+## 4️⃣ Traitements effectués
+
+- **IDE utilisé :**
+- **Langage / Scripts :**
+- **Description du traitement :**
+- **Emplacement du script :**
+- **Fréquence :**
+- **Durée approximative :**
+
+---
+
+## 5️⃣ Vérifications à faire
+
+**Avant traitement :**
+
+- [ ] Format correct ?
+- [ ] Colonnes attendues ?
+- [ ] Données complètes ?
+- [ ] Vérifier la période ?
+
+**Après traitement :**
+
+- [ ] Fichier généré ?
+- [ ] Volume correct ?
+- [ ] Fichier envoyé ?
+
+---
+
+## 6️⃣ Procédures en cas de problème
+
+**Problèmes fréquents :**
+
+- Fichier manquant
+- Mauvais format
+- Colonnes manquantes
+- Script en erreur
+
+**Étapes à suivre :**
+
+1. Vérifier mail / SecureShare
+2. Contacter l’expéditeur
+3. Corriger format si possible
+4. Relancer le script
+5. Escalader à : [Responsable]
+
+---
+
+## 7️⃣ Contacts
+
+- Responsable flux :
+- Backup :
+- Destinataire final :
+
+---
+
+## 8️⃣ Journal des traitements
+
+| Date | Fichier traité | Remarques | Traitement OK ? | Envoyé à |
+|------|----------------|-----------|-----------------|----------|
+| JJ/MM/AAAA | ventes_01072025.csv | - | ✅ | analyste@exemple.com |
+| JJ/MM/AAAA | ventes_01072025.csv | - | ✅ | analyste@exemple.com |
+
+---
+
+## 9️⃣ Liens & Répertoires
+
+- 📂 Répertoire de réception :
+- 📂 Répertoire de dépôt final :
+- 📁 Script Python :
+- 📑 Documentation complémentaire :
 
 
