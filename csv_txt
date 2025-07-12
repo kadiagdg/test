@@ -1,0 +1,143 @@
+import pandas as pd
+import glob
+import os
+
+def concat2(dossier):
+    """
+    Concatène les fichiers CSV (séparateur ',') et TXT (séparateur ';') d'un dossier,
+    filtre les colonnes spécifiées et supprime les doublons.
+    
+    Args:
+        dossier (str): Nom du sous-dossier dans 'data/input/' à traiter
+    
+    Returns:
+        tuple: (head du DataFrame, message de statut)
+    """
+    try:
+        # Construction des chemins
+        input_path = os.path.join('data', 'input', dossier)
+        save_path = os.path.join('data', 'output')
+        
+        # Vérification des répertoires
+        if not os.path.exists(input_path):
+            raise FileNotFoundError(f"Le dossier {input_path} n'existe pas")
+        
+        os.makedirs(save_path, exist_ok=True)
+        
+        # Recherche des fichiers
+        csv_files = glob.glob(os.path.join(input_path, "*.csv"))
+        txt_files = glob.glob(os.path.join(input_path, "*.txt"))
+        all_files = csv_files + txt_files
+        
+        if not all_files:
+            raise FileNotFoundError("Aucun fichier .csv ou .txt trouvé")
+        
+        print("Fichiers trouvés:", all_files)
+        
+        # Lecture et concaténation des fichiers
+        dfs = []
+        for f in all_files:
+            try:
+                sep = "," if f.endswith(".csv") else ";"
+                df = pd.read_csv(f, sep=sep, usecols=["Party_id", "Host_Account_Mar"])
+                dfs.append(df)
+            except Exception as e:
+                print(f"Erreur lors de la lecture de {f}: {str(e)}")
+                continue
+        
+        if not dfs:
+            raise ValueError("Aucun fichier valide n'a pu être lu")
+        
+        df_result = pd.concat(dfs, ignore_index=True)
+        
+        # Nettoyage des données
+        df_result = df_result.astype("string")
+        df_result = df_result[["Party_id", "Host_Account_Mar"]].drop_duplicates()
+        
+        # Sauvegarde
+        output_file = os.path.join(save_path, "resultat_concatenation.csv")
+        df_result.to_csv(output_file, sep=',', index=False)
+        
+        print("Traitement terminé avec succès. Shape:", df_result.shape)
+        return df_result.head(), "Succès"
+    
+    except Exception as e:
+        print("Erreur:", str(e))
+        return None, f"Erreur: {str(e)}"
+
+_____________________________________________________________________________________________
+
+import pandas as pd
+import glob
+import os
+
+def traiter_fichiers(dossier):
+    """
+    Traite chaque fichier CSV (séparateur ',') et TXT (séparateur ';') d'un dossier individuellement,
+    filtre les colonnes spécifiées, supprime les doublons et sauvegarde les résultats.
+    
+    Args:
+        dossier (str): Nom du sous-dossier dans 'data/input/' à traiter
+    
+    Returns:
+        dict: Dictionnaire avec les stats de traitement {nom_fichier: (head, statut)}
+    """
+    try:
+        # Construction des chemins
+        input_path = os.path.join('data', 'input', dossier)
+        save_path = os.path.join('data', 'output', dossier)
+        
+        # Vérification des répertoires
+        if not os.path.exists(input_path):
+            raise FileNotFoundError(f"Le dossier {input_path} n'existe pas")
+        
+        os.makedirs(save_path, exist_ok=True)
+        
+        # Recherche des fichiers
+        csv_files = glob.glob(os.path.join(input_path, "*.csv"))
+        txt_files = glob.glob(os.path.join(input_path, "*.txt"))
+        all_files = csv_files + txt_files
+        
+        if not all_files:
+            raise FileNotFoundError("Aucun fichier .csv ou .txt trouvé")
+        
+        print(f"{len(all_files)} fichiers trouvés dans {input_path}")
+        
+        résultats = {}
+        
+        for fichier in all_files:
+            try:
+                # Déterminer le séparateur
+                sep = "," if fichier.endswith(".csv") else ";"
+                nom_fichier = os.path.basename(fichier)
+                
+                # Lecture du fichier
+                df = pd.read_csv(fichier, sep=sep, usecols=["Party_id", "Host_Account_Mar"])
+                
+                # Traitement
+                df = df.astype("string")
+                df = df.drop_duplicates()
+                
+                # Sauvegarde
+                nom_sortie = f"traite_{nom_fichier}"
+                chemin_sortie = os.path.join(save_path, nom_sortie)
+                df.to_csv(chemin_sortie, sep=',', index=False)
+                
+                # Stocker le résultat
+                résultats[nom_fichier] = (df.head(), "Succès")
+                print(f"{nom_fichier} traité avec succès -> {chemin_sortie}")
+                
+            except Exception as e:
+                msg_erreur = f"Erreur avec {os.path.basename(fichier)}: {str(e)}"
+                print(msg_erreur)
+                résultats[os.path.basename(fichier)] = (None, msg_erreur)
+                continue
+        
+        return résultats
+    
+    except Exception as e:
+        print("Erreur globale:", str(e))
+        return {"Erreur globale": (None, str(e))}
+
+
+
