@@ -141,7 +141,10 @@ def traiter_fichiers(dossier):
 
 ____________________________________________________________________________________________________
 
+
 # 📘 RUNBOOK – TRAITEMENT MANUEL DONNÉES
+
+---
 
 ## 1️⃣ Informations Générales
 
@@ -174,71 +177,109 @@ ________________________________________________________________________________
 
 - **IDE utilisé :**
 - **Langage / Scripts :**
-- **Description du traitement :**
-- **Emplacement du script :**
+- **Description générale :**
+  - Extraction, nettoyage, jointures, enrichissements, contrôles qualité, export.
+- **Répertoire des scripts :**
 - **Fréquence :**
 - **Durée approximative :**
 
 ---
 
-## 5️⃣ Vérifications à faire
+## 5️⃣ Étapes d’exécution détaillées
 
-**Avant traitement :**
+1. **Télécharger le fichier source**  
+   Télécharger la pièce jointe du mail ou copier depuis SecureShare/Share vers le dossier de travail.
 
-- [ ] Format correct ?
-- [ ] Colonnes attendues ?
-- [ ] Données complètes ?
-- [ ] Vérifier la période ?
+2. **Vérifier le fichier brut**  
+   Vérifier le format, la date, les colonnes, le volume.
 
-**Après traitement :**
+3. **Ouvrir l’IDE Python**  
+   VSCode, PyCharm ou Jupyter Notebook.
 
-- [ ] Fichier généré ?
-- [ ] Volume correct ?
-- [ ] Fichier envoyé ?
+4. **Exécuter le script principal `01_extraction.py`**  
+   - Charger le fichier brut.  
+   - Vérifier les logs d’import.
+
+5. **Exécuter `02_nettoyage.py`**  
+   - Nettoyage : doublons, valeurs manquantes, formats.  
+   - Vérifier le DataFrame intermédiaire.
+
+6. **Exécuter `03_jointure.py`**  
+   - Faire les jointures nécessaires avec d’autres sources.  
+   - Vérifier cohérence.
+
+7. **Exécuter `04_enrichissement.py`**  
+   - Ajouter indicateurs, colonnes calculées.  
+   - Vérifier le DataFrame final.
+
+8. **Contrôler le résultat final**  
+   Vérifier le volume, les valeurs clés, les formats.
+
+9. **Exporter le fichier final**  
+   Format : CSV, XLSX, Parquet.  
+   Nom : `output_<date>.csv`.
+
+10. **Déposer ou envoyer le fichier final**  
+   Déposer sur Share/SecureShare ou envoyer par mail aux analystes.
+
+11. **Mettre à jour le journal de traitement**
 
 ---
 
-## 6️⃣ Procédures en cas de problème
+## 6️⃣ Vérifications à faire
+
+**Avant exécution :**
+- [x] Fichier source présent et valide ?
+- [x] Scripts à jour ?
+- [X] Paramètres corrects (chemins, variables) ?
+
+**Pendant exécution :**
+- [ ] Les logs n’ont pas d’erreurs ?
+- [ ] Vérifier les DataFrames intermédiaires ?
+
+**Après exécution :**
+- [ ] Fichier final conforme ?
+- [ ] Bien transféré ou envoyé ?
+
+---
+
+## 7️⃣ Procédures en cas de problème
 
 **Problèmes fréquents :**
+- Fichier manquant ou corrompu.
+- Script en erreur (package, chemin, syntaxe).
+- Résultat incomplet ou incohérent.
 
-- Fichier manquant
-- Mauvais format
-- Colonnes manquantes
-- Script en erreur
-
-**Étapes à suivre :**
-
-1. Vérifier mail / SecureShare
-2. Contacter l’expéditeur
-3. Corriger format si possible
-4. Relancer le script
+**Que faire :**
+1. Vérifier le fichier brut.
+2. Consulter les logs.
+3. Exécuter étape par étape.
+4. Corriger le problème.
 5. Escalader à : [Responsable]
 
 ---
 
-## 7️⃣ Contacts
+## 8️⃣ Contacts
 
-- Responsable flux :
-- Backup :
-- Destinataire final :
-
----
-
-## 8️⃣ Journal des traitements
-
-| Date | Fichier traité | Remarques | Traitement OK ? | Envoyé à |
-|------|----------------|-----------|-----------------|----------|
-| JJ/MM/AAAA | ventes_01072025.csv | - | ✅ | analyste@exemple.com |
-| JJ/MM/AAAA | ventes_01072025.csv | - | ✅ | analyste@exemple.com |
+- **Responsable flux :**
+- **Backup :**
+- **Destinataire final :**
 
 ---
 
-## 9️⃣ Liens & Répertoires
+## 9️⃣ Journal des traitements
 
-- 📂 Répertoire de réception :
-- 📂 Répertoire de dépôt final :
-- 📁 Script Python :
-- 📑 Documentation complémentaire :
+| Date | Fichier traité | Étapes exécutées | Remarques | OK ? | Envoyé à |
+|------|----------------|------------------|-----------|------|----------|
+| JJ/MM/AAAA | ventes_01072025.csv | extraction > nettoyage > jointure | RAS | ✅ | analyste@exemple.com |
+
+---
+
+## 🔗 1️⃣0️⃣ Liens & Répertoires
+
+- 📂 **Répertoire de réception :**
+- 📂 **Répertoire de dépôt final :**
+- 📁 **Répertoire des scripts Python :**
+- 📑 **Documentation technique / README :**
 
 
