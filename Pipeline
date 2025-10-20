@@ -1,0 +1,175 @@
+Excellent 👏 — ton **contexte est très clair et pertinent**, et il correspond à un **projet structurant de gouvernance et d’automatisation de transfert de données inter-serveurs**.
+Tu veux passer d’un **processus manuel et fragmenté** à une **pipeline automatisée, contrôlée et sécurisée**, entre ton **Data Warehouse central (serveur DW)** et les **environnements locaux (Dev, Homo, Prod)** via un **canal de rebond sécurisé (Amazon S3)**.
+
+Voici un **document de cadrage complet** que tu pourras présenter au **CODIR / Direction Data** ou à un **comité projet** 👇
+
+---
+
+# 📘 **Document de cadrage – Projet de pipeline de données DW ⇢ Filiale**
+
+## 🎯 **1. Objectif du projet**
+
+Mettre en place une **pipeline de transfert de données automatisée, traçable et sécurisée** entre :
+
+* le **serveur Data Warehouse (DW)** central,
+* les **serveurs locaux** de la filiale (Dev, Homologation, Production),
+* via une **plateforme de rebond Amazon S3** servant de zone d’échange sécurisée.
+
+Cette pipeline remplacera le **transfert manuel actuel** effectué via SecureShare et garantira :
+
+* la **disponibilité et la fraîcheur des données** pour les use cases métiers,
+* la **sécurité et conformité** des échanges,
+* la **traçabilité et auditabilité complète** du flux de données.
+
+---
+
+## 🧱 **2. Contexte actuel**
+
+* Les **data engineers locaux** rédigent des requêtes SQL ou des scripts d’extraction sur le **serveur DW**.
+* Les données extraites sont **transférées manuellement** via **SecureShare** vers les serveurs **Dev**, **Homo**, ou **Prod**.
+* Cette méthode :
+
+  * n’est **pas automatisée** ;
+  * **mobilise beaucoup de ressources humaines** ;
+  * comporte des **risques d’erreur ou de décalage** ;
+  * ne garantit pas la **traçabilité complète** ni la **sécurité de bout en bout**.
+
+---
+
+## ⚙️ **3. Cible et fonctionnement du pipeline**
+
+### 🔄 **Chaîne technique cible**
+
+```
+[Serveur DW central]
+        │
+ (CFT DW configuré)
+        │
+        ▼
+[Plateforme de rebond - Amazon S3]
+        │
+ (Canal sécurisé chiffré)
+        │
+        ▼
+[CFT Filiale]
+        │
+        ▼
+[Serveurs locaux : DEV / HOMO / PROD]
+```
+
+### 🔧 **Fonctionnement**
+
+1. **Extraction automatisée** des datasets depuis le DW selon la requête transmise par les data engineers locaux.
+2. **Envoi automatisé** des données depuis le **CFT du DW** vers **S3 (zone rebond)**.
+3. **Récupération automatique** du fichier par le **CFT local**.
+4. **Déclenchement automatique** du chargement dans le serveur cible (Dev / Homo / Prod).
+5. **Suivi et traçabilité** : logs, notifications mail et audit.
+
+---
+
+## 👥 **4. Parties prenantes et rôles**
+
+| Catégorie                     | Rôle                                                                          | Exemples           |
+| ----------------------------- | ----------------------------------------------------------------------------- | ------------------ |
+| **Data Engineers (Filiale)**  | Rédiger les requêtes d’extraction, valider les datasets, tester la réception  | Équipe data locale |
+| **Data Engineers (DW / KB)**  | Automatiser le pipeline, paramétrer les jobs d’extraction et les DAG          | Équipe centrale    |
+| **Experts Sécurité / RSSI**   | Valider les protocoles de transfert, le chiffrement et les accès              | RSSI / Sécurité IT |
+| **Experts Réseau / Infra**    | Configurer les CFT (DW & Filiale), tester la connectivité et la plateforme S3 | DSI / Réseau       |
+| **Experts Cloud (AWS)**       | Configurer le bucket S3 rebond, les IAM, les rôles et politiques d’accès      | Équipe Cloud       |
+| **Chef de projet Data / PMO** | Piloter le projet, coordonner les équipes, suivre les jalons et JH            | Direction Data     |
+| **MOA / Métiers**             | Consulter les jeux de données disponibles, valider la conformité des données  | Direction métier   |
+
+---
+
+## 🧭 **5. RACI (Responsabilités)**
+
+| Activité                                       | Data Eng. Local | Data Eng. DW | RSSI | Cloud AWS | Réseau/Infra | Chef Projet |
+| ---------------------------------------------- | --------------- | ------------ | ---- | --------- | ------------ | ----------- |
+| Analyse besoins & jeux de données              | R               | C            | I    | I         | I            | A           |
+| Rédaction requêtes                             | R               | C            | I    | I         | I            | I           |
+| Configuration CFT DW                           | I               | R            | C    | I         | A            | C           |
+| Configuration CFT Filiale                      | R               | I            | C    | C         | A            | C           |
+| Configuration S3 rebond                        | I               | I            | C    | R         | I            | C           |
+| Sécurisation flux (certificats, VPN, clés SSH) | I               | I            | R    | C         | C            | A           |
+| Automatisation pipeline (Airflow / script)     | C               | R            | I    | I         | I            | C           |
+| Tests & validation                             | R               | R            | C    | C         | I            | A           |
+| Déploiement Prod                               | I               | R            | C    | C         | A            | A           |
+| Documentation & transfert compétences          | C               | R            | C    | I         | I            | A           |
+
+**R** = Responsable / **A** = Approbateur / **C** = Consulté / **I** = Informé
+
+---
+
+## 🔐 **6. Sécurité & conformité**
+
+* **Transferts chiffrés** (SFTP, SSH, ou HTTPS)
+* **Authentification forte** via certificats ou clés SSH
+* **Stockage chiffré** (AES-256 sur S3)
+* **Gestion des accès** par **rôles IAM et ACL**
+* **Audit logs et suivi** des transferts (CloudTrail / Airflow / CFT logs)
+* **Validation RSSI** avant mise en service
+* **Conformité RGPD et politique Data interne**
+
+---
+
+## 📆 **7. Étapes du projet et estimation JH**
+
+| Étape                             | Description                                          | Livrables                      | Durée (jours) | JH estimés | Parties impliquées        |
+| --------------------------------- | ---------------------------------------------------- | ------------------------------ | ------------- | ---------- | ------------------------- |
+| 1. Cadrage & validation besoins   | Atelier entre DW et filiale, périmètre et volumétrie | Note de cadrage                | 3             | 6 JH       | Chef projet, Data Eng.    |
+| 2. Conception technique           | Architecture cible, flux, protocole, sécurité        | Schéma d’archi, plan de flux   | 4             | 8 JH       | Architecte, Réseau, Cloud |
+| 3. Configuration CFT DW & Filiale | Installation, configuration, test de connectivité    | CFT configurés et validés      | 5             | 10 JH      | Infra, Sécurité           |
+| 4. Mise en place S3 rebond        | Création bucket, rôles IAM, test transfert           | Bucket sécurisé et fonctionnel | 3             | 6 JH       | Cloud, Sécurité           |
+| 5. Développement pipeline         | Scripts, automatisation, logs, notifications         | Code validé, DAG fonctionnel   | 7             | 14 JH      | Data Eng. DW              |
+| 6. Tests intégrés & recette       | Test de bout en bout, validation flux                | PV de recette                  | 3             | 6 JH       | Toutes équipes            |
+| 7. Déploiement & documentation    | Mise en Prod + formation                             | Documentation + transfert      | 3             | 6 JH       | Chef projet, DW           |
+| 8. Suivi post-prod                | Monitoring, correctifs, optimisation                 | Rapport final                  | 2             | 4 JH       | DW, Filiale               |
+
+➡️ **Total estimé : 60 JH**
+**Répartition indicative :**
+
+* DW / KB : 25 JH
+* Filiale : 15 JH
+* Réseau / Cloud / Sécurité : 15 JH
+* Pilotage projet : 5 JH
+
+---
+
+## 💰 **8. Coût et facturation prévisionnelle**
+
+| Ressource                 | Taux journalier moyen | JH estimés | Coût total estimé |
+| ------------------------- | --------------------- | ---------- | ----------------- |
+| Data Engineer DW          | 250 € / JH            | 25         | 6 250 €           |
+| Data Engineer Filiale     | 200 € / JH            | 15         | 3 000 €           |
+| Experts Réseau / Sécurité | 300 € / JH            | 10         | 3 000 €           |
+| Experts Cloud (AWS)       | 350 € / JH            | 5          | 1 750 €           |
+| Chef de projet / PMO      | 400 € / JH            | 5          | 2 000 €           |
+| **Total estimé**          |                       | **60 JH**  | **≈ 16 000 €**    |
+
+*(Les montants sont indicatifs et peuvent être ajustés selon les TJM internes/externes.)*
+
+---
+
+## 📦 **9. Livrables clés**
+
+1. Cahier des charges fonctionnel
+2. Diagramme d’architecture technique (DW ⇢ S3 ⇢ CFT Filiale ⇢ Environnements locaux)
+3. Scripts / DAGs d’automatisation
+4. Procédure d’exploitation et de reprise
+5. Documentation sécurité (flux, certificats, rôles IAM)
+6. PV de recette et validation sécurité
+7. Manuel utilisateur (Data Engineers locaux)
+
+---
+
+## 🔁 **10. Suivi et maintenance**
+
+* Monitoring automatique (Airflow, Grafana, ou CloudWatch)
+* Alertes email/SMS en cas d’échec ou retard de flux
+* Revue mensuelle de performance
+* Mise à jour semestrielle des accès et certificats
+
+---
+
+Souhaites-tu que je te **mette ce cadrage au propre dans un document Word/PowerPoint prêt à présenter (avec RACI, JH, coût et schéma architecture)** ?
+Je peux te le générer directement.
